@@ -1,0 +1,38 @@
+# Definice I2C sběrnice na pinech 4 a 5
+i2c:
+  sda: 4
+  scl: 5
+  scan: true
+  id: bus_a
+ 
+# Senzory
+sensor:
+  # AHT20 modul (ESPHome používá stejnou platformu pro AHT10 i AHT20)
+  - platform: aht10
+    temperature:
+      name: "Teplota (AHT20)"
+    humidity:
+      name: "Vlhkost (AHT20)"
+ 
+  # BMP280 modul
+  - platform: bmp280
+    temperature:
+      name: "Teplota (BMP280)"
+    pressure:
+      name: "Tlak (BMP280)"
+    address: 0x77 # Může být i 0x76, pokud to s 0x77 nepůjde
+    update_interval: 10s
+ 
+# Ovládání relé
+switch:
+# První relé (na pinu 5)
+  - platform: gpio
+    pin: 5 
+    name: "Relé větrák"
+    id: relay_1
+    inverted: false # Změň na true, pokud se v HA zapíná/vypíná obráceně
+  - platform: gpio
+    pin: 6 # Tvůj IN pin relátka
+    name: "Relé topení"
+    id: relay_1
+    inverted: false # Změň na true, pokud se ti relé v HA chová obráceně

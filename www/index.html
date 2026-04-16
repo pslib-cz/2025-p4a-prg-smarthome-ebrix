@@ -1,0 +1,2920 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EBRIX Thermal Storage Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    /* ============ CSS RESET & CUSTOM PROPERTIES ============ */
+    :root {
+      --bg-primary: #0a0e1a;
+      --bg-card: #151b28;
+      --bg-card-hover: #1a2235;
+      --bg-tile: rgba(255,255,255,0.03);
+      --border-card: #1e2a3a;
+      --text-primary: #ffffff;
+      --text-secondary: #8892a4;
+      --text-muted: #5a6478;
+      --accent-green: #10b981;
+      --accent-orange: #f59e0b;
+      --accent-red: #ef4444;
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+      --accent-teal: #14b8a6;
+      --accent-cyan: #06b6d4;
+      --accent-pink: #ec4899;
+      --accent-lime: #84cc16;
+      --accent-amber: #d97706;
+      --accent-indigo: #6366f1;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 2px 8px rgba(0,0,0,0.3);
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+      /* EBRIX Status colors */
+      --status-off: #334155;
+      --status-charging: #f59e0b;
+      --status-full: #10b981;
+      --status-continuous: #3b82f6;
+      --status-discharging: #ec4899;
+      --status-cooling: #06b6d4;
+
+      /* Admin panel */
+      --panel-width: 380px;
+      --panel-bg: #0d1220;
+      --panel-border: #1e2a3a;
+
+      /* LED blink */
+      --blink-speed: 1.2s;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ============ HEADER ============ */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 56px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-card);
+      box-shadow: var(--shadow);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-left .logo-icon {
+      font-size: 20px;
+      color: var(--accent-teal);
+    }
+
+    .header-left h1 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .connection-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-red);
+      transition: background 0.3s;
+    }
+
+    .connection-dot.connected {
+      background: var(--accent-green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ============ TOKEN BANNER ============ */
+    .token-banner {
+      display: none;
+      padding: 12px 24px;
+      background: rgba(245, 158, 11, 0.15);
+      border-bottom: 1px solid var(--accent-orange);
+      color: var(--accent-orange);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .token-banner.visible {
+      display: block;
+    }
+
+    /* ============ DASHBOARD GRID ============ */
+    .dashboard {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      padding: 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* ============ CARD ============ */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+      transition: all 0.2s;
+    }
+
+    .card:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(255,255,255,0.2);
+    }
+
+    .card-full {
+      grid-column: 1 / -1;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .card-header h2 {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-secondary);
+    }
+
+    .indicator-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot-green  { background: var(--accent-green); }
+    .dot-orange { background: var(--accent-orange); }
+    .dot-blue   { background: var(--accent-blue); }
+    .dot-purple { background: var(--accent-purple); }
+    .dot-teal   { background: var(--accent-teal); }
+    .dot-gray   { background: var(--text-muted); }
+
+    /* ============ SENSOR TILES ============ */
+    .sensor-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+    }
+
+    .sensor-tile {
+      background: var(--bg-tile);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+
+    .sensor-tile:hover {
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(255,255,255,0.15);
+    }
+
+    .sensor-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    .sensor-value-row {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+
+    .sensor-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.1;
+      font-family: var(--font);
+    }
+
+    .sensor-unit {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .sparkline-wrap {
+      position: relative;
+      margin-top: 8px;
+      height: 40px;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .sparkline-wrap canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* ============ CONTROLS ============ */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .control-item {
+      background: var(--bg-tile);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .control-item.exclusive-warning {
+      border: 1px solid var(--accent-orange);
+    }
+
+    .control-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .control-sublabel {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .control-sublabel.linked {
+      color: var(--accent-orange);
+    }
+
+    .toggle-btn {
+      position: relative;
+      width: 52px;
+      height: 28px;
+      border-radius: 14px;
+      border: none;
+      cursor: pointer;
+      background: #2a2a3a;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .toggle-btn::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #6b7280;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    .toggle-btn.on {
+      background: var(--accent-green);
+    }
+
+    .toggle-btn.on::after {
+      transform: translateX(24px);
+      background: #ffffff;
+    }
+
+    .toggle-btn:active {
+      transform: scale(0.95);
+    }
+
+    .toggle-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* ============ SECURITY INFO ============ */
+    .security-info {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-card);
+    }
+
+    .security-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      font-size: 0.8rem;
+    }
+
+    .security-label {
+      color: var(--text-muted);
+    }
+
+    .security-value {
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .security-value.warn {
+      color: var(--accent-orange);
+    }
+
+    .security-value.ok {
+      color: var(--accent-green);
+    }
+
+    /* ============ CHART ============ */
+    .chart-wrapper {
+      position: relative;
+      height: 350px;
+      padding: 16px;
+    }
+
+    .chart-toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .chart-toggle-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-family: var(--font);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .chart-toggle-btn:hover {
+      border-color: rgba(255,255,255,0.25);
+      color: var(--text-secondary);
+    }
+
+    .chart-toggle-btn.active {
+      border-color: var(--accent-blue);
+      background: rgba(59,130,246,0.1);
+      color: var(--accent-blue);
+    }
+
+    .chart-toggle-btn.active {
+      color: #fff;
+      border-color: transparent;
+    }
+
+    .chart-toggle-btn .color-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* ============ LOG TABLE ============ */
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .log-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .log-count {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: var(--bg-tile);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .log-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .log-actions button {
+      padding: 4px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-card);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .log-actions button:hover {
+      background: var(--bg-tile);
+      color: var(--text-primary);
+    }
+
+    .table-wrapper {
+      max-height: 400px;
+      overflow-y: auto;
+      overflow-x: auto;
+      border-radius: var(--radius-sm);
+    }
+
+    .table-wrapper::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    .table-wrapper::-webkit-scrollbar-track {
+      background: var(--bg-primary);
+    }
+
+    .table-wrapper::-webkit-scrollbar-thumb {
+      background: var(--border-card);
+      border-radius: 3px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      background: var(--bg-card);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-size: 0.7rem;
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-card);
+      white-space: nowrap;
+    }
+
+    tbody td {
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    tbody tr:nth-child(even) {
+      background: rgba(255,255,255,0.02);
+    }
+
+    tbody tr:hover {
+      background: rgba(255,255,255,0.05);
+    }
+
+    /* ============ TOAST NOTIFICATIONS ============ */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toast {
+      padding: 12px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #fff;
+      animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards;
+      max-width: 360px;
+    }
+
+    .toast.error   { background: rgba(239, 68, 68, 0.9); }
+    .toast.success  { background: rgba(16, 185, 129, 0.9); }
+    .toast.info     { background: rgba(59, 130, 246, 0.9); }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes toastOut {
+      from { opacity: 1; }
+      to   { opacity: 0; transform: translateY(-10px); }
+    }
+
+    /* ============ STATUS BANNER ============ */
+    .status-banner {
+      background: var(--bg-card);
+      border-left: 4px solid var(--status-off);
+      border-bottom: 1px solid var(--border-card);
+      padding: 24px 32px;
+      margin: 0;
+      margin-top: -1px;
+      border-radius: 0;
+      display: flex;
+      gap: 40px;
+      align-items: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .status-banner__left {
+      flex: 0 0 auto;
+      min-width: 180px;
+    }
+
+    .status-banner__state-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      font-family: 'Courier New', monospace;
+    }
+
+    .status-banner__state {
+      font-size: 2.4rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--status-off);
+      line-height: 1.1;
+      transition: color 0.3s;
+      font-family: var(--font);
+      position: relative;
+      z-index: 1;
+    }
+
+    .status-banner__state.blinking {
+      animation: ledBlink 1s ease-in-out infinite;
+    }
+
+    @keyframes ledBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .status-banner__sub {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-top: 10px;
+      letter-spacing: 0.5px;
+      font-family: 'Courier New', monospace;
+    }
+
+    .status-banner__center {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 0 40px;
+      border-left: 1px solid var(--border-card);
+      border-right: 1px solid var(--border-card);
+    }
+
+    .status-banner__metric-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--text-muted);
+      font-family: 'Courier New', monospace;
+    }
+
+    .status-banner__temp {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      font-family: 'Courier New', monospace;
+      letter-spacing: 1px;
+    }
+
+    .status-banner__temp .unit {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-left: 6px;
+      font-weight: 600;
+    }
+
+    .progress-track {
+      position: relative;
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--accent-blue);
+      border-radius: 3px;
+      transition: width 0.3s, background 0.3s;
+      width: 0%;
+    }
+
+    .progress-label {
+      position: absolute;
+      top: 10px;
+      right: 0;
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-family: 'Courier New', monospace;
+      font-weight: 600;
+    }
+
+    .status-banner__right {
+      flex: 0 0 auto;
+      text-align: right;
+      min-width: 180px;
+    }
+
+    .status-banner__energy {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      font-family: 'Courier New', monospace;
+      letter-spacing: 1px;
+    }
+
+    .status-banner__energy .unit {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-left: 6px;
+      font-weight: 600;
+    }
+
+    .status-banner__efficiency {
+      font-size: 0.75rem;
+      color: var(--accent-green);
+      margin-top: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-family: 'Courier New', monospace;
+      text-shadow: 0 0 10px rgba(16,185,129,0.3);
+    }
+
+    /* ============ MODE SELECTOR ============ */
+    .mode-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    #modeCard {
+      margin-top: 32px;
+    }
+
+    .mode-btn {
+      padding: 14px 8px;
+      background: transparent;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      font-family: var(--font);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .mode-btn:hover {
+      border-color: rgba(255,255,255,0.3);
+      color: var(--text-primary);
+    }
+
+    .mode-btn.active {
+      border-color: var(--accent-blue);
+      background: rgba(59,130,246,0.1);
+      color: var(--accent-blue);
+    }
+
+    .mode-btn__icon {
+      font-size: 1.6rem;
+      display: block;
+      margin-bottom: 6px;
+      line-height: 1;
+    }
+
+    .mode-btn__name {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ============ FLAP BADGE ============ */
+    .flap-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .flap-badge.open {
+      background: rgba(16,185,129,0.15);
+      color: var(--accent-green);
+      border: 1px solid var(--accent-green);
+    }
+
+    .flap-badge.closed {
+      background: rgba(90,100,120,0.15);
+      color: var(--text-muted);
+      border: 1px solid var(--text-muted);
+    }
+
+    /* ============ EFFICIENCY BADGE ============ */
+    .efficiency-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: rgba(16,185,129,0.1);
+      color: var(--accent-green);
+      border: 1px solid var(--accent-green);
+      font-family: var(--font);
+    }
+
+    /* ============ ENERGY PRICES ============ */
+    .prices-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+      grid-column: 1 / -1;
+    }
+
+    .price-card {
+      background: linear-gradient(135deg, rgba(30,42,58,0.5) 0%, rgba(21,27,40,0.5) 100%);
+      border: 1px solid var(--border-card);
+      padding: 28px;
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .price-card .card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 0;
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .price-card .card-header h2 {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    .price-content {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      flex: 1;
+    }
+
+    .price-item {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .price-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .price-value-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .price-value {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .price-value.price-cheap {
+      color: var(--accent-green);
+    }
+
+    .price-value.price-expensive {
+      color: var(--accent-red);
+    }
+
+    .price-unit {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* ============ EBRIX LOGO ============ */
+    .ebrix-logo {
+      height: 28px;
+      width: auto;
+      fill: #ffffff;
+    }
+
+    /* ============ ADMIN BUTTON ============ */
+    .admin-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .admin-btn:hover {
+      background: rgba(255,255,255,0.05);
+      color: var(--text-primary);
+    }
+
+    /* ============ ADMIN PANEL ============ */
+    .admin-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+      backdrop-filter: blur(2px);
+    }
+
+    .admin-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .admin-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: var(--panel-width);
+      height: 100vh;
+      background: var(--panel-bg);
+      border-left: 1px solid var(--panel-border);
+      z-index: 201;
+      transform: translateX(100%);
+      transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .admin-panel.open {
+      transform: translateX(0);
+    }
+
+    .admin-panel__header {
+      padding: 20px;
+      border-bottom: 1px solid var(--panel-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .admin-panel__header span {
+      font-weight: 700;
+      letter-spacing: 1px;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+    }
+
+    .admin-panel__close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px;
+      transition: color 0.2s;
+    }
+
+    .admin-panel__close:hover {
+      color: var(--text-primary);
+    }
+
+    .admin-panel__tabs {
+      display: flex;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .admin-tab {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .admin-tab:hover {
+      color: var(--text-secondary);
+    }
+
+    .admin-tab.active {
+      color: var(--accent-blue);
+      border-bottom-color: var(--accent-blue);
+    }
+
+    .admin-panel__body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .param-group {
+      margin-bottom: 24px;
+    }
+
+    .param-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .param-input {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      font-family: var(--font);
+      transition: border-color 0.2s;
+    }
+
+    .param-input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    .param-input-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+
+    .calc-preview {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      margin-top: 16px;
+      font-size: 0.85rem;
+    }
+
+    .calc-preview-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .calc-preview-line {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      color: var(--text-secondary);
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+
+    .calc-preview-line:last-child {
+      border-bottom: none;
+    }
+
+    .calc-preview-value {
+      color: var(--accent-green);
+      font-weight: 600;
+    }
+
+    .ha-setup-info {
+      line-height: 1.8;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .ha-setup-info h3 {
+      color: var(--text-primary);
+      margin-bottom: 12px;
+      margin-top: 0;
+      font-size: 0.9rem;
+    }
+
+    .ha-setup-info ol {
+      padding-left: 20px;
+    }
+
+    .ha-setup-info li {
+      margin-bottom: 8px;
+    }
+
+    .ha-setup-code {
+      background: rgba(255,255,255,0.05);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-family: 'Monaco', 'Courier New', monospace;
+    }
+
+    .ha-setup-config {
+      margin-top: 16px;
+      padding: 12px;
+      background: rgba(59,130,246,0.1);
+      border-radius: 8px;
+      border: 1px solid rgba(59,130,246,0.3);
+      font-size: 0.85rem;
+    }
+
+    .ha-setup-config strong {
+      color: var(--accent-blue);
+    }
+
+    /* ============ ICON CLASSES ============ */
+    .icon-warning::before {
+      content: '⚠';
+      margin-right: 4px;
+    }
+
+    .icon-circle::before {
+      content: '●';
+      margin-right: 4px;
+    }
+
+    .icon-off::before {
+      content: '⊘';
+      margin-right: 4px;
+    }
+
+    .icon-charge::before {
+      content: '↑';
+      margin-right: 4px;
+    }
+
+    .icon-play::before {
+      content: '▶';
+      margin-right: 4px;
+    }
+
+    .icon-discharge::before {
+      content: '⬇';
+      margin-right: 4px;
+    }
+
+    /* ============ RESPONSIVE ============ */
+    @media (max-width: 768px) {
+      .dashboard {
+        grid-template-columns: 1fr;
+        padding: 12px;
+        gap: 12px;
+      }
+
+      .card-full {
+        grid-column: 1;
+      }
+
+      .controls-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .mode-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .status-banner {
+        flex-direction: column;
+        gap: 16px;
+        align-items: flex-start;
+        padding: 16px;
+      }
+
+      .status-banner__center {
+        border-left: none;
+        border-right: none;
+        padding: 0;
+      }
+
+      .status-banner__right {
+        text-align: left;
+      }
+
+      .header {
+        padding: 0 12px;
+      }
+
+      .header-left h1 {
+        font-size: 14px;
+      }
+
+      .sensor-value {
+        font-size: 1.4rem;
+      }
+
+      .chart-wrapper {
+        height: 250px;
+      }
+
+      .admin-panel {
+        width: 100%;
+        max-width: var(--panel-width);
+      }
+
+      .prices-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-left">
+      <svg class="ebrix-logo" viewBox="0 0 834 556" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(rgba(255, 255, 255, 0.32) 0px 0px 2.41359px);"><path d="M712.5 192.5C712.5 250 653 279 653 279C702.2 300.2 713.167 344.5 712.5 364V390V455.5C710.5 525.1 650.333 548.167 620.5 551H401.5V415H174.5V368.5H339V192.5H174.5V145.5H401.5V5H533.5H620.5C687.7 18.6 709.833 70 712.5 94M712.5 192.5C712.5 123.3 712.5 98 712.5 94M712.5 192.5V94M482 106V229.5H581C614 211.667 660.2 162 581 106H482ZM482 326.5V450H581C614 432.167 660.2 382.5 581 326.5H482Z" fill="white" stroke="none"></path><path d="M755 405.5V151H793.5C819.5 151 827.667 178.667 828.5 192.5V357.5C828.5 393.9 805.167 404.667 793.5 405.5H755Z" fill="white" stroke="none"></path><path d="M5 5V551H343.5V450H231.75H120V328.5H280V229.5H200H120V106H343.5V5H5Z" fill="white" stroke="none"></path></svg>
+      <h1>EBRIX THERMAL STORAGE</h1>
+    </div>
+    <div class="header-right">
+      <button class="admin-btn" onclick="openAdminPanel()" title="Nastavení">⚙</button>
+      <span class="connection-dot" id="connDot"></span>
+      <span id="connText">Připojuji se...</span>
+      <span id="lastUpdate"></span>
+    </div>
+  </header>
+
+  <!-- TOKEN WARNING BANNER -->
+  <div class="token-banner" id="tokenBanner">
+    <span class="icon-warning"></span> Přístupový token není nakonfigurován. Nastavte konstantu <code>TOKEN</code> v souboru pro připojení k Home Assistant.
+  </div>
+
+  <!-- STATUS BANNER -->
+  <div class="status-banner" id="statusBanner" data-mode="off">
+    <div class="status-banner__left">
+      <div class="status-banner__state-label">STAV SYSTÉMU</div>
+      <div class="status-banner__state" id="statusText">VYPNUTO</div>
+      <div class="status-banner__sub" id="statusSub">Systém je v klidovém stavu</div>
+    </div>
+    <div class="status-banner__center">
+      <div class="status-banner__metric-label">TEPLOTA JÁDRA</div>
+      <div class="status-banner__temp">
+        <span id="bannerCoreTemp">--</span><span class="unit">°C</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="bannerProgressBar" style="width:0%"></div>
+        <span class="progress-label">Cíl: 80°C</span>
+      </div>
+    </div>
+    <div class="status-banner__right">
+      <div class="status-banner__metric-label">ULOŽENÁ ENERGIE</div>
+      <div class="status-banner__energy">
+        <span id="bannerEStored">--</span><span class="unit">Wh</span>
+      </div>
+      <div class="status-banner__efficiency" id="bannerEfficiency">-- % efektivita</div>
+    </div>
+  </div>
+
+  <main class="dashboard">
+
+    <!-- MODE SELECTOR CARD -->
+    <section class="card card-full" id="modeCard">
+      <div class="card-header">
+        <span class="indicator-dot dot-blue"></span>
+        <h2>Režim provozu EBRIX</h2>
+        <div class="flap-badge closed" id="flapBadge" style="margin-left:auto"><span class="icon-circle"></span> Klapka UZAVŘENA</div>
+      </div>
+      <div class="mode-grid">
+        <button class="mode-btn active" data-mode="off" onclick="setMode('off')">
+          <span class="icon-off"></span>
+          <span class="mode-btn__name">VYPNUTO</span>
+        </button>
+        <button class="mode-btn" data-mode="charging" onclick="setMode('charging')">
+          <span class="icon-charge"></span>
+          <span class="mode-btn__name">NABÍJENÍ</span>
+        </button>
+        <button class="mode-btn" data-mode="continuous" onclick="setMode('continuous')">
+          <span class="icon-play"></span>
+          <span class="mode-btn__name">PRŮBĚŽNĚ</span>
+        </button>
+        <button class="mode-btn" data-mode="discharging" onclick="setMode('discharging')">
+          <span class="icon-discharge"></span>
+          <span class="mode-btn__name">VYBÍJENÍ</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- SYSTEM CARD (ENERGY/PZEM) -->
+    <section class="card" id="energyCard">
+      <div class="card-header">
+        <span class="indicator-dot dot-orange"></span>
+        <h2>EBRIX Prototyp - Systém</h2>
+      </div>
+      <div class="sensor-grid">
+        <div class="sensor-tile" id="tile-klima_box_napeti_pzem">
+          <span class="sensor-label">Napětí</span>
+          <div class="sensor-value-row">
+            <span class="sensor-value" id="val-klima_box_napeti_pzem">0</span>
+            <span class="sensor-unit">V</span>
+          </div>
+          <div class="sparkline-wrap"><canvas id="spark-klima_box_napeti_pzem"></canvas></div>
+        </div>
+        <div class="sensor-tile" id="tile-klima_box_proud_pzem">
+          <span class="sensor-label">Proud</span>
+          <div class="sensor-value-row">
+            <span class="sensor-value" id="val-klima_box_proud_pzem">0</span>
+            <span class="sensor-unit">A</span>
+          </div>
+          <div class="sparkline-wrap"><canvas id="spark-klima_box_proud_pzem"></canvas></div>
+        </div>
+        <div class="sensor-tile" id="tile-klima_box_vykon_pzem">
+          <span class="sensor-label">Výkon</span>
+          <div class="sensor-value-row">
+            <span class="sensor-value" id="val-klima_box_vykon_pzem">0</span>
+            <span class="sensor-unit">W</span>
+          </div>
+          <div class="sparkline-wrap"><canvas id="spark-klima_box_vykon_pzem"></canvas></div>
+        </div>
+        <div class="sensor-tile" id="tile-klima_box_spotrebovana_energie_pzem">
+          <span class="sensor-label">Energie</span>
+          <div class="sensor-value-row">
+            <span class="sensor-value" id="val-klima_box_spotrebovana_energie_pzem">0</span>
+            <span class="sensor-unit">Wh</span>
+          </div>
+          <div class="sparkline-wrap"><canvas id="spark-klima_box_spotrebovana_energie_pzem"></canvas></div>
+        </div>
+        <div class="sensor-tile" id="tile-klima_box_frekvence_pzem">
+          <span class="sensor-label">Frekvence</span>
+          <div class="sensor-value-row">
+            <span class="sensor-value" id="val-klima_box_frekvence_pzem">0</span>
+            <span class="sensor-unit">Hz</span>
+          </div>
+          <div class="sparkline-wrap"><canvas id="spark-klima_box_frekvence_pzem"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MONITORING CARD -->
+    <section class="card" id="systemCard">
+      <div class="card-header">
+        <span class="indicator-dot dot-purple"></span>
+        <h2>EBRIX Prototyp - Monitorování</h2>
+      </div>
+      <div class="sensor-grid">
+        <div class="sensor-tile" id="tile-klima_box_teplota_core">
+          <span class="sensor-label">EBRIX Core</span>
+          <div class="sensor-value-row">
+            <span class="sensor-value" id="val-klima_box_teplota_core">--</span>
+            <span class="sensor-unit">&deg;C</span>
+          </div>
+          <div class="sparkline-wrap"><canvas id="spark-klima_box_teplota_core"></canvas></div>
+        </div>
+        <div class="sensor-tile" id="tile-klima_box_teplota_out">
+          <span class="sensor-label">Teplota (Out)</span>
+          <div class="sensor-value-row">
+            <span class="sensor-value" id="val-klima_box_teplota_out">--</span>
+            <span class="sensor-unit">&deg;C</span>
+          </div>
+          <div class="sparkline-wrap"><canvas id="spark-klima_box_teplota_out"></canvas></div>
+        </div>
+      </div>
+      <div class="security-info">
+        <div class="security-row">
+          <span class="security-label">Protokol</span>
+          <span class="security-value warn" id="secProtocol">HTTP</span>
+        </div>
+        <div class="security-row">
+          <span class="security-label">Síť</span>
+          <span class="security-value ok" id="secNetwork">LAN</span>
+        </div>
+        <div class="security-row">
+          <span class="security-label">Ověření</span>
+          <span class="security-value ok">Bearer Token</span>
+        </div>
+        <div class="security-row">
+          <span class="security-label">HA Instance</span>
+          <span class="security-value" id="secHA">--</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CLIMATE CARD -->
+    <section class="card" id="climateCard">
+      <div class="card-header">
+        <span class="indicator-dot dot-green"></span>
+        <h2>EBRIX Prototyp - Atmosféra</h2>
+      </div>
+      <div class="sensor-grid">
+        <div class="sensor-tile" id="tile-klima_box_teplota_aht">
+          <span class="sensor-label">Teplota (AHT)</span>
+          <div class="sensor-value-row">
+            <span class="sensor-value" id="val-klima_box_teplota_aht">--</span>
+            <span class="sensor-unit">&deg;C</span>
+          </div>
+          <div class="sparkline-wrap"><canvas id="spark-klima_box_teplota_aht"></canvas></div>
+        </div>
+        <div class="sensor-tile" id="tile-klima_box_vlhkost_aht">
+          <span class="sensor-label">Vlhkost (AHT)</span>
+          <div class="sensor-value-row">
+            <span class="sensor-value" id="val-klima_box_vlhkost_aht">--</span>
+            <span class="sensor-unit">%</span>
+          </div>
+          <div class="sparkline-wrap"><canvas id="spark-klima_box_vlhkost_aht"></canvas></div>
+        </div>
+        <div class="sensor-tile" id="tile-klima_box_teplota_bmp">
+          <span class="sensor-label">Teplota (BMP)</span>
+          <div class="sensor-value-row">
+            <span class="sensor-value" id="val-klima_box_teplota_bmp">--</span>
+            <span class="sensor-unit">&deg;C</span>
+          </div>
+          <div class="sparkline-wrap"><canvas id="spark-klima_box_teplota_bmp"></canvas></div>
+        </div>
+        <div class="sensor-tile" id="tile-klima_box_tlak_bmp">
+          <span class="sensor-label">Tlak (BMP)</span>
+          <div class="sensor-value-row">
+            <span class="sensor-value" id="val-klima_box_tlak_bmp">--</span>
+            <span class="sensor-unit">hPa</span>
+          </div>
+          <div class="sparkline-wrap"><canvas id="spark-klima_box_tlak_bmp"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTROLS CARD -->
+    <section class="card" id="controlsCard">
+      <div class="card-header">
+        <span class="indicator-dot dot-blue"></span>
+        <h2>Ovládání</h2>
+      </div>
+      <div class="controls-grid">
+        <div class="control-item" id="ctrl-klima_box_rele_vetrak">
+          <div>
+            <div class="control-label">Relé Ventilátor</div>
+            <div class="control-sublabel">Relé — GPIO 7</div>
+          </div>
+          <button class="toggle-btn" id="btn-klima_box_rele_vetrak" onclick="toggleSwitch('switch.klima_box_rele_vetrak')"></button>
+        </div>
+        <div class="control-item" id="ctrl-klima_box_rele_ohrivac">
+          <div>
+            <div class="control-label">Relé Ohřívač</div>
+            <div class="control-sublabel">Relé — GPIO 8</div>
+          </div>
+          <button class="toggle-btn" id="btn-klima_box_rele_ohrivac" onclick="toggleSwitch('switch.klima_box_rele_ohrivac')"></button>
+        </div>
+        <div class="control-item" id="ctrl-klima_box_maly_vetracek_vpred">
+          <div>
+            <div class="control-label">Malý větrák (Vpřed)</div>
+            <div class="control-sublabel linked">Exkluzivní s Vzad</div>
+          </div>
+          <button class="toggle-btn" id="btn-klima_box_maly_vetracek_vpred" onclick="toggleExclusiveFan('switch.klima_box_maly_vetracek_vpred')"></button>
+        </div>
+        <div class="control-item" id="ctrl-klima_box_maly_vetracek_vzad">
+          <div>
+            <div class="control-label">Malý větrák (Vzad)</div>
+            <div class="control-sublabel linked">Exkluzivní s Vpřed</div>
+          </div>
+          <button class="toggle-btn" id="btn-klima_box_maly_vetracek_vzad" onclick="toggleExclusiveFan('switch.klima_box_maly_vetracek_vzad')"></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAIN CHART CARD -->
+    <section class="card card-full" id="chartCard">
+      <div class="card-header">
+        <span class="indicator-dot dot-teal"></span>
+        <h2>Teplotní vývoj</h2>
+      </div>
+      <div class="chart-toggles" id="chartToggles"></div>
+      <div class="chart-wrapper">
+        <canvas id="historyChart"></canvas>
+      </div>
+    </section>
+
+    <!-- ENERGY CHART CARD -->
+    <section class="card card-full" id="energyChartCard">
+      <div class="card-header">
+        <span class="indicator-dot dot-orange"></span>
+        <h2>Energetická bilance</h2>
+        <div class="efficiency-badge" id="efficiencyBadge" style="margin-left:auto">Efektivita: -- %</div>
+      </div>
+      <div class="chart-toggles" id="energyChartToggles"></div>
+      <div class="chart-wrapper">
+        <canvas id="energyChart"></canvas>
+      </div>
+    </section>
+
+    <!-- ENERGY PRICES SECTION -->
+    <section class="prices-grid" id="pricesSection">
+      <!-- CURRENT PRICES CARD -->
+      <div class="card price-card" id="currentPriceCard">
+        <div class="card-header">
+          <span class="indicator-dot dot-cyan"></span>
+          <h2>Aktuální ceny</h2>
+        </div>
+        <div class="price-content">
+          <div class="price-item">
+            <span class="price-label">Elektřina</span>
+            <div class="price-value-row">
+              <span class="price-value" id="priceElectricity">--</span>
+              <span class="price-unit">€/kWh</span>
+            </div>
+          </div>
+          <div class="price-item">
+            <span class="price-label">Plyn</span>
+            <div class="price-value-row">
+              <span class="price-value" id="priceGas">--</span>
+              <span class="price-unit">€/kWh</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TODAY'S COMPARISON CARD -->
+      <div class="card price-card" id="todayPriceCard">
+        <div class="card-header">
+          <span class="indicator-dot dot-orange"></span>
+          <h2>Dnešní porovnání</h2>
+        </div>
+        <div class="price-content">
+          <div class="price-item">
+            <span class="price-label">Nejlevnější</span>
+            <div class="price-value-row">
+              <span class="price-value price-cheap" id="priceCheapestToday">--</span>
+              <span class="price-unit">€/kWh</span>
+            </div>
+          </div>
+          <div class="price-item">
+            <span class="price-label">Nejdražší</span>
+            <div class="price-value-row">
+              <span class="price-value price-expensive" id="priceExpensiveToday">--</span>
+              <span class="price-unit">€/kWh</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TOMORROW'S FORECAST CARD -->
+      <div class="card price-card" id="tomorrowPriceCard">
+        <div class="card-header">
+          <span class="indicator-dot dot-purple"></span>
+          <h2>Zítřejší prognóza</h2>
+        </div>
+        <div class="price-content">
+          <div class="price-item">
+            <span class="price-label">Nejlevnější elektřina</span>
+            <div class="price-value-row">
+              <span class="price-value price-cheap" id="priceCheapestTomorrow">--</span>
+              <span class="price-unit">€/kWh</span>
+            </div>
+          </div>
+          <div class="price-item">
+            <span class="price-label">Plyn na zítřek</span>
+            <div class="price-value-row">
+              <span class="price-value" id="priceGasTomorrow">--</span>
+              <span class="price-unit">€/kWh</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COST ANALYSIS CARD -->
+      <div class="card price-card" id="costAnalysisCard">
+        <div class="card-header">
+          <span class="indicator-dot dot-pink"></span>
+          <h2>Analýza nákladů</h2>
+        </div>
+        <div class="price-content">
+          <div class="price-item">
+            <span class="price-label">Aktuální výkon</span>
+            <div class="price-value-row">
+              <span class="price-value" id="costCurrentPower">--</span>
+              <span class="price-unit">W</span>
+            </div>
+          </div>
+          <div class="price-item">
+            <span class="price-label">Hodinová cena</span>
+            <div class="price-value-row">
+              <span class="price-value" id="costPerHour">--</span>
+              <span class="price-unit">€/h</span>
+            </div>
+          </div>
+          <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0; padding-top: 12px;">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; font-weight: 600;">Cena uložené energie</div>
+            <div class="price-item" style="margin-bottom: 8px;">
+              <span class="price-label">Kdyby elektřina</span>
+              <div class="price-value-row">
+                <span class="price-value" id="costStoredElectricity">--</span>
+                <span class="price-unit">€</span>
+              </div>
+            </div>
+            <div class="price-item">
+              <span class="price-label">Kdyby plyn</span>
+              <div class="price-value-row">
+                <span class="price-value" id="costStoredGas">--</span>
+                <span class="price-unit">€</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOG TABLE CARD -->
+    <section class="card card-full" id="logCard">
+      <div class="log-header">
+        <div class="log-header-left">
+          <span class="indicator-dot dot-gray"></span>
+          <h2 style="font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-secondary);">Protokol Měření</h2>
+          <span class="log-count" id="logCount">0 záznamů</span>
+        </div>
+        <div class="log-actions">
+          <button onclick="exportCSV()">Exportovat CSV</button>
+          <button onclick="clearLog()">Vymazat</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Čas</th>
+              <th>Tepl. AHT</th>
+              <th>Vlhkost</th>
+              <th>Tepl. BMP</th>
+              <th>Tlak</th>
+              <th>Tepl. Out</th>
+              <th>EBRIX Core</th>
+              <th>Napětí</th>
+              <th>Proud</th>
+              <th>Výkon</th>
+              <th>Energie (Wh)</th>
+              <th>Uloženo (Wh)</th>
+              <th>Efektivita (%)</th>
+              <th>Frekvence</th>
+            </tr>
+          </thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- TOAST CONTAINER -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ADMIN PANEL OVERLAY -->
+  <div class="admin-overlay" id="adminOverlay" onclick="closeAdminPanel()"></div>
+
+  <!-- ADMIN PANEL -->
+  <div class="admin-panel" id="adminPanel">
+    <div class="admin-panel__header">
+      <span>NASTAVENÍ EBRIX</span>
+      <button class="admin-panel__close" onclick="closeAdminPanel()">✕</button>
+    </div>
+    <div class="admin-panel__tabs">
+      <div class="admin-tab active" onclick="switchAdminTab('physics')">Fyzika</div>
+      <div class="admin-tab" onclick="switchAdminTab('system')">Systém</div>
+      <div class="admin-tab" onclick="switchAdminTab('limits')">Limity</div>
+      <div class="admin-tab" onclick="switchAdminTab('ha')">Nastavení HA</div>
+    </div>
+    <div class="admin-panel__body">
+      <!-- TAB: FYZIKA -->
+      <div id="tab-physics">
+        <div class="param-group">
+          <label class="param-label">Rozměry šamotové cihly (cm)</label>
+          <div class="param-input-row">
+            <div>
+              <label class="param-label" style="font-size:0.65rem;margin-bottom:4px">Délka</label>
+              <input class="param-input" id="param-length" type="number" value="20" min="1" step="1" oninput="recalcPhysics()">
+            </div>
+            <div>
+              <label class="param-label" style="font-size:0.65rem;margin-bottom:4px">Šířka</label>
+              <input class="param-input" id="param-width" type="number" value="20" min="1" step="1" oninput="recalcPhysics()">
+            </div>
+            <div>
+              <label class="param-label" style="font-size:0.65rem;margin-bottom:4px">Výška</label>
+              <input class="param-input" id="param-height" type="number" value="20" min="1" step="1" oninput="recalcPhysics()">
+            </div>
+          </div>
+        </div>
+        <div class="param-group">
+          <label class="param-label">Hustota šamotu (kg/m³)</label>
+          <input class="param-input" id="param-density" type="number" value="1800" min="100" step="10" oninput="recalcPhysics()">
+        </div>
+        <div class="param-group">
+          <label class="param-label">Měrná tepelná kapacita (J/kg·K)</label>
+          <input class="param-input" id="param-cp" type="number" value="900" min="100" step="10" oninput="recalcPhysics()">
+        </div>
+        <div class="param-group">
+          <label class="param-label">Referenční teplota (°C)</label>
+          <input class="param-input" id="param-tref" type="number" value="20" min="-20" step="1" oninput="recalcPhysics()">
+        </div>
+        <div class="calc-preview" id="calcPreview">
+          <div class="calc-preview-label">Výpočet</div>
+          <div id="calcPreviewContent">Zadejte parametry...</div>
+        </div>
+      </div>
+
+      <!-- TAB: SYSTÉM -->
+      <div id="tab-system" style="display:none">
+        <div class="param-group">
+          <label class="param-label">Home Assistant URL</label>
+          <input class="param-input" id="param-ha-url" type="text" value="http://10.0.1.64:8123" oninput="updateSystemParams()">
+        </div>
+        <div class="param-group">
+          <label class="param-label">Polling senzorů (ms)</label>
+          <input class="param-input" id="param-sensor-refresh" type="number" value="5000" min="1000" step="1000" oninput="updateSystemParams()">
+        </div>
+        <div class="param-group">
+          <label class="param-label">Záznam histórie (ms)</label>
+          <input class="param-input" id="param-history-refresh" type="number" value="30000" min="5000" step="5000" oninput="updateSystemParams()">
+        </div>
+        <div class="param-group">
+          <label class="param-label">Max bodů v historii</label>
+          <input class="param-input" id="param-max-history" type="number" value="120" min="10" step="10" oninput="updateSystemParams()">
+        </div>
+        <div class="calc-preview" id="systemPreview">
+          <div class="calc-preview-label">Aktuální nastavení</div>
+          <div id="systemPreviewContent"></div>
+        </div>
+      </div>
+
+      <!-- TAB: LIMITY -->
+      <div id="tab-limits" style="display:none">
+        <div class="param-group">
+          <label class="param-label">Cílová teplota nabíjení (°C)</label>
+          <input class="param-input" id="param-charge-temp" type="number" value="80" min="30" step="1" oninput="updateSystemParams()">
+        </div>
+        <div class="param-group">
+          <label class="param-label">Hystereze (°C)</label>
+          <input class="param-input" id="param-hysteresis" type="number" value="1" min="0.1" step="0.1" oninput="updateSystemParams()">
+        </div>
+        <div class="param-group">
+          <label class="param-label">Varování teplota (°C)</label>
+          <input class="param-input" id="param-temp-warning" type="number" value="40" min="20" step="1" oninput="updateSystemParams()">
+        </div>
+        <div class="param-group">
+          <label class="param-label">Kritická teplota (°C)</label>
+          <input class="param-input" id="param-temp-critical" type="number" value="70" min="40" step="1" oninput="updateSystemParams()">
+        </div>
+      </div>
+
+      <!-- TAB: HA SETUP -->
+      <div id="tab-ha" style="display:none">
+        <div class="ha-setup-info">
+          <h3>Zprovoznění na Raspberry Pi</h3>
+          <ol>
+            <li>Nainstaluj Home Assistant OS na Raspberry Pi</li>
+            <li>Nastav ESP32 s ESPHome — připoj senzory AHT20, BMP280, PZEM-004T</li>
+            <li>V HA přidej Long-Lived Access Token:<br>
+              <span class="ha-setup-code">Profil → Bezpečnost → Token</span></li>
+            <li>Aktualizuj konstantu TOKEN v souboru</li>
+            <li>Zkopíruj <span class="ha-setup-code">index.html</span> do <span class="ha-setup-code">/config/www/</span></li>
+            <li>Přístup přes: <span class="ha-setup-code">http://[HA_IP]:8123/local/index.html</span></li>
+          </ol>
+          <div class="ha-setup-config">
+            <strong>Aktuální konfigurace:</strong><br>
+            HA URL: <span id="adminHaUrl">http://10.0.1.64:8123</span><br>
+            Token: <span id="adminTokenPreview" style="font-size:0.75rem">***</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    //  CONFIGURATION — Change these values to match your setup
+    // ============================================================
+    // Auto-detect HA URL:
+    // - Pokud běží na localhost:8123 (local testing) → localhost:8123
+    // - Pokud běží na portu 8123 (HA /local/) → window.location.origin
+    // - Jinak → 10.0.1.64:8123 (production)
+    const HA_URL  = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                    ? 'http://localhost:8123'
+                    : (window.location.port === '8123' ? window.location.origin : 'http://10.0.1.64:8123');
+    const TOKEN   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIyY2U4ZWRiN2NlMzA0MWY4OWI0Yjk5NGQ3NTFlMTUzYyIsImlhdCI6MTc3NjI2NDEyNCwiZXhwIjoyMDkxNjI0MTI0fQ.HJBKqMriH87Ci9lXSRWpnJXKYzG0IUR7WYIEfXo5WIY';
+
+    const SENSOR_REFRESH_MS  = 2000;   // Sensor polling interval (2s)
+    const HISTORY_REFRESH_MS = 2000;   // History record interval (2s) — grafy se budou měnit rychle!
+    const MAX_HISTORY_POINTS = 300;    // Max data points per sensor (~10 minut na 2s)
+    const MAX_LOG_ENTRIES    = 100;    // Max rows in log table
+    const SPARKLINE_POINTS   = 20;    // Points visible in mini sparklines
+
+    // Mutually exclusive fan pair
+    const FAN_PAIR = {
+      'switch.klima_box_maly_vetracek_vpred': 'switch.klima_box_maly_vetracek_vzad',
+      'switch.klima_box_maly_vetracek_vzad':  'switch.klima_box_maly_vetracek_vpred',
+    };
+
+    // ============================================================
+    //  ENTITY REGISTRY — Correct entity IDs from Home Assistant
+    // ============================================================
+    const SENSOR_DEFS = [
+      { id: 'sensor.klima_box_teplota_aht',              label: 'Teplota AHT',  unit: '\u00b0C', precision: 1, color: '#10b981', group: 'climate', defaultZero: false },
+      { id: 'sensor.klima_box_vlhkost_aht',              label: 'Vlhkost AHT',  unit: '%',       precision: 1, color: '#f59e0b', group: 'climate', defaultZero: false },
+      { id: 'sensor.klima_box_teplota_bmp',              label: 'Teplota BMP',   unit: '\u00b0C', precision: 1, color: '#14b8a6', group: 'climate', defaultZero: false },
+      { id: 'sensor.klima_box_tlak_bmp',                 label: 'Tlak BMP',      unit: 'hPa',     precision: 0, color: '#8b5cf6', group: 'climate', defaultZero: false },
+      { id: 'sensor.klima_box_napeti_pzem',              label: 'Napětí',        unit: 'V',       precision: 1, color: '#3b82f6', group: 'energy',  defaultZero: true },
+      { id: 'sensor.klima_box_proud_pzem',               label: 'Proud',         unit: 'A',       precision: 2, color: '#06b6d4', group: 'energy',  defaultZero: true },
+      { id: 'sensor.klima_box_vykon_pzem',               label: 'Výkon',         unit: 'W',       precision: 1, color: '#ec4899', group: 'energy',  defaultZero: true },
+      { id: 'sensor.klima_box_spotrebovana_energie_pzem',label: 'Energie',       unit: 'Wh',      precision: 2, color: '#d97706', group: 'energy',  defaultZero: true },
+      { id: 'sensor.klima_box_frekvence_pzem',           label: 'Frekvence',     unit: 'Hz',      precision: 1, color: '#84cc16', group: 'energy',  defaultZero: true },
+      { id: 'sensor.klima_box_teplota_core',             label: 'EBRIX Core',    unit: '\u00b0C', precision: 1, color: '#6366f1', group: 'system',  defaultZero: false },
+      { id: 'sensor.klima_box_teplota_out',              label: 'Teplota Out',   unit: '\u00b0C', precision: 1, color: '#ef4444', group: 'system',  defaultZero: false },
+    ];
+
+    const SWITCH_DEFS = [
+      { id: 'switch.klima_box_rele_vetrak',          label: 'Relé Ventilátor' },
+      { id: 'switch.klima_box_rele_ohrivac',         label: 'Relé Ohřívač' },
+      { id: 'switch.klima_box_maly_vetracek_vpred',  label: 'Větrák Vpřed' },
+      { id: 'switch.klima_box_maly_vetracek_vzad',   label: 'Větrák Vzad' },
+    ];
+
+    // ============================================================
+    //  ENERGY PRICE ENTITIES — České spotové ceny energií
+    // ============================================================
+    const ENERGY_PRICE_DEFS = [
+      { id: 'sensor.current_spot_electricity_price',       label: 'Aktuální elektřina',           type: 'current' },
+      { id: 'sensor.current_spot_gas_price',               label: 'Aktuální plyn',                type: 'current' },
+      { id: 'sensor.spot_cheapest_electricity_today',      label: 'Nejlevnější dnes',             type: 'today_cheap' },
+      { id: 'sensor.spot_most_expensive_electricity_today',label: 'Nejdražší dnes',               type: 'today_expensive' },
+      { id: 'sensor.spot_cheapest_electricity_tomorrow',   label: 'Nejlevnější na zítřek',       type: 'tomorrow_cheap' },
+      { id: 'sensor.spot_most_expensive_electricity_tomorrow', label: 'Nejdražší na zítřek',     type: 'tomorrow_expensive' },
+      { id: 'sensor.tomorrow_spot_gas_price',              label: 'Plyn na zítřek',              type: 'tomorrow_gas' },
+    ];
+
+    let energyPrices = {};
+    ENERGY_PRICE_DEFS.forEach(def => { energyPrices[def.id] = null; });
+
+    // ============================================================
+    //  EBRIX PHYSICS — Šamotová cihla
+    // ============================================================
+    let brickParams = {
+      length:  20,   // cm
+      width:   20,   // cm
+      height:  20,   // cm
+      density: 1800, // kg/m³
+      cp:      900,  // J/(kg·K)
+      tRef:    20,   // °C
+    };
+
+    function getBrickMass() {
+      const vol = (brickParams.length / 100) * (brickParams.width / 100) * (brickParams.height / 100);
+      return brickParams.density * vol;
+    }
+
+    function calcStoredEnergy(tCore) {
+      if (tCore === null || isNaN(tCore)) return null;
+      const m = getBrickMass();
+      const deltaT = Math.max(0, tCore - brickParams.tRef);
+      const E_J = m * brickParams.cp * deltaT;
+      return E_J / 3600;   // Wh
+    }
+
+    function calcEfficiency(eStoredWh, pzemEnergyWh) {
+      if (!eStoredWh || !pzemEnergyWh || pzemEnergyWh <= 0) return null;
+      return Math.min(100, (eStoredWh / pzemEnergyWh) * 100);
+    }
+
+    // ============================================================
+    //  MODE STATE MACHINE
+    // ============================================================
+    const MODE_CONFIG = {
+      off:         { label: 'VYPNUTO',    sub: 'Systém je v klidovém stavu',       color: '#334155', blink: false,
+                     vetrak: 'off', ohrivac: 'off', vpred: 'off', vzad: 'off' },
+      charging:    { label: 'NABÍJENÍ',   sub: 'Nabíjení tepelné baterie',          color: '#f59e0b', blink: true,
+                     vetrak: 'on',  ohrivac: 'on',  vpred: 'off', vzad: 'off' },
+      full:        { label: 'NABITO',     sub: 'Teplota dosáhla 80°C — klikni na Vybíjení',        color: '#10b981', blink: false,
+                     vetrak: 'off', ohrivac: 'off', vpred: 'off', vzad: 'off' },
+      continuous:  { label: 'PRŮBĚŽNĚ',   sub: 'Průběžné nabíjení s cirkulací',    color: '#3b82f6', blink: true,
+                     vetrak: 'on',  ohrivac: 'on',  vpred: 'on',  vzad: 'off' },
+      discharging: { label: 'VYBÍJENÍ',   sub: 'Vybíjení tepelné energie',          color: '#ec4899', blink: true,
+                     vetrak: 'off', ohrivac: 'off', vpred: 'on',  vzad: 'off' },
+    };
+
+    const CHARGE_TARGET_TEMP = 80;   // °C
+    let CHARGE_HYSTERESIS = 1;       // °C
+    let currentMode        = 'off';
+    let displayedMode      = 'off';  // 'full' je substav 'charging'
+    let modeCommandBusy    = false;
+
+    async function setMode(mode) {
+      if (modeCommandBusy) return;
+      modeCommandBusy = true;
+
+      currentMode = mode;
+      const cfg = MODE_CONFIG[mode];
+
+      const SWITCH_MAP = {
+        'switch.klima_box_rele_vetrak':         cfg.vetrak,
+        'switch.klima_box_rele_ohrivac':        cfg.ohrivac,
+        'switch.klima_box_maly_vetracek_vpred': cfg.vpred,
+        'switch.klima_box_maly_vetracek_vzad':  cfg.vzad,
+      };
+
+      try {
+        await Promise.all(
+          Object.entries(SWITCH_MAP).map(([id, state]) => setSwitchState(id, state))
+        );
+        showToast(`Režim nastaven: ${cfg.label}`, 'success');
+        updateModeUI(mode);
+      } catch (err) {
+        showToast(`Chyba při nastavení režimu: ${err.message}`, 'error');
+      } finally {
+        modeCommandBusy = false;
+        setTimeout(() => refreshSwitches(), 600);
+      }
+    }
+
+    function checkAutoCharge() {
+      if (currentMode !== 'charging') return;
+
+      const coreTemp = getSensorValue(
+        SENSOR_DEFS.find(d => d.id === 'sensor.klima_box_teplota_core'),
+        lastStates['sensor.klima_box_teplota_core']
+      );
+
+      if (coreTemp === null) return;
+
+      const wasDisplayedFull = displayedMode === 'full';
+
+      // Když teplota dosáhne 80°C → zobraz NABITO (jen vizuální, fyzicky nic)
+      if (coreTemp >= CHARGE_TARGET_TEMP && !wasDisplayedFull) {
+        displayedMode = 'full';
+        updateStatusBanner('full');
+        showToast('🔥 Teplota dosáhla 80°C — NABITO! Klikni na VYBÍJENÍ, aby jsi pokračoval', 'info');
+
+      // Když teplota klesne pod 79°C a je v NABITO → vrátit na NABÍJENÍ (jen vizuální)
+      } else if (coreTemp < (CHARGE_TARGET_TEMP - CHARGE_HYSTERESIS) && wasDisplayedFull) {
+        displayedMode = 'charging';
+        updateStatusBanner('charging');
+      }
+    }
+
+    function updateStatusBanner(mode) {
+      const cfg = MODE_CONFIG[mode] || MODE_CONFIG.off;
+      const banner     = document.getElementById('statusBanner');
+      const statusText = document.getElementById('statusText');
+      const statusSub  = document.getElementById('statusSub');
+
+      statusText.textContent = cfg.label;
+      statusSub.textContent  = cfg.sub;
+      banner.style.borderLeftColor = cfg.color;
+      statusText.style.color = cfg.color;
+
+      statusText.classList.toggle('blinking', cfg.blink);
+
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        const btnMode = btn.dataset.mode;
+        const activeMode = (mode === 'full') ? 'charging' : mode;
+        btn.classList.toggle('active', btnMode === activeMode);
+        if (btnMode === activeMode) {
+          btn.style.borderColor = cfg.color;
+          btn.style.background = `${cfg.color}22`;
+          btn.style.color = cfg.color;
+        } else {
+          btn.style.borderColor = 'transparent';
+          btn.style.background = '';
+          btn.style.color = '';
+        }
+      });
+    }
+
+    function updateModeUI(mode) {
+      displayedMode = mode;
+      updateStatusBanner(mode);
+    }
+
+    function updateBannerMetrics() {
+      const coreTemp  = getSensorValue(
+        SENSOR_DEFS.find(d => d.id === 'sensor.klima_box_teplota_core'),
+        lastStates['sensor.klima_box_teplota_core']
+      );
+      const pzemEnergy = getSensorValue(
+        SENSOR_DEFS.find(d => d.id === 'sensor.klima_box_spotrebovana_energie_pzem'),
+        lastStates['sensor.klima_box_spotrebovana_energie_pzem']
+      );
+
+      const coreTempEl = document.getElementById('bannerCoreTemp');
+      coreTempEl.textContent = coreTemp !== null ? coreTemp.toFixed(1) : '--';
+
+      const progressEl = document.getElementById('bannerProgressBar');
+      const pct = coreTemp !== null ? Math.min(100, Math.max(0, (coreTemp / CHARGE_TARGET_TEMP) * 100)) : 0;
+      progressEl.style.width = `${pct}%`;
+      progressEl.style.background = pct >= 100
+        ? 'var(--accent-green)'
+        : pct > 60 ? 'var(--accent-orange)' : 'var(--accent-blue)';
+
+      const eStored = calcStoredEnergy(coreTemp);
+      document.getElementById('bannerEStored').textContent =
+        eStored !== null ? eStored.toFixed(1) : '--';
+
+      const eff = calcEfficiency(eStored, pzemEnergy);
+      document.getElementById('bannerEfficiency').textContent =
+        eff !== null ? `${eff.toFixed(1)} % efektivita` : '-- % efektivita';
+
+      const vpredState = lastStates['switch.klima_box_maly_vetracek_vpred']?.state;
+      const flapBadge  = document.getElementById('flapBadge');
+      if (flapBadge) {
+        if (vpredState === 'on') {
+          flapBadge.className = 'flap-badge open';
+          flapBadge.innerHTML = '<span class="icon-circle"></span> Klapka OTEVŘENA';
+        } else {
+          flapBadge.className = 'flap-badge closed';
+          flapBadge.innerHTML = '<span class="icon-circle"></span> Klapka UZAVŘENA';
+        }
+      }
+    }
+
+    // ============================================================
+    //  STATE
+    // ============================================================
+    let isConnected    = false;
+    let lastStates     = {};
+    let sensorHistory  = {};  // { entityId: [{ time, value }] }
+    let logHistory     = [];
+    let mainChart      = null;
+    let sparkCharts    = {};  // { entityId: Chart }
+    let chartVisible   = {};  // { entityId: boolean }
+
+    // Initialize history and chart visibility
+    const TEMP_CHART_SENSORS = [
+      'sensor.klima_box_teplota_aht',
+      'sensor.klima_box_teplota_bmp',
+      'sensor.klima_box_teplota_core',
+      'sensor.klima_box_teplota_out',
+    ];
+    const ENERGY_CHART_SENSORS = [
+      'sensor.klima_box_vykon_pzem',
+      'sensor.klima_box_spotrebovana_energie_pzem',
+    ];
+
+    SENSOR_DEFS.forEach(s => {
+      sensorHistory[s.id] = [];
+      chartVisible[s.id] = TEMP_CHART_SENSORS.includes(s.id);
+    });
+
+    let energyChart = null;
+    let energyChartVisible = {
+      'sensor.klima_box_vykon_pzem': true,
+      'sensor.klima_box_spotrebovana_energie_pzem': true,
+      'ebrix_e_stored': true,
+    };
+
+    // ============================================================
+    //  API LAYER
+    // ============================================================
+    const apiHeaders = () => ({
+      'Authorization': `Bearer ${TOKEN}`,
+      'Content-Type':  'application/json',
+    });
+
+    async function fetchState(entityId) {
+      const resp = await fetch(`${HA_URL}/api/states/${entityId}`, { headers: apiHeaders() });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      return resp.json();
+    }
+
+    async function fetchAllStates() {
+      const allEntities = [...SENSOR_DEFS, ...SWITCH_DEFS, ...ENERGY_PRICE_DEFS];
+      const results = await Promise.allSettled(
+        allEntities.map(e => fetchState(e.id))
+      );
+
+      let success = 0, failed = 0;
+      results.forEach((result, i) => {
+        if (result.status === 'fulfilled') {
+          lastStates[allEntities[i].id] = result.value;
+          if (ENERGY_PRICE_DEFS.some(e => e.id === allEntities[i].id)) {
+            energyPrices[allEntities[i].id] = result.value.state;
+          }
+          success++;
+        } else {
+          failed++;
+        }
+      });
+      return { success, failed };
+    }
+
+    async function setSwitchState(entityId, desiredState) {
+      const service = desiredState === 'on' ? 'turn_on' : 'turn_off';
+      const resp = await fetch(`${HA_URL}/api/services/switch/${service}`, {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({ entity_id: entityId }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    }
+
+    async function toggleSwitch(entityId) {
+      try {
+        const resp = await fetch(`${HA_URL}/api/services/switch/toggle`, {
+          method: 'POST',
+          headers: apiHeaders(),
+          body: JSON.stringify({ entity_id: entityId }),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+        const shortName = SWITCH_DEFS.find(s => s.id === entityId)?.label || entityId;
+        showToast(`${shortName} přepnuto`, 'success');
+        setTimeout(() => refreshSwitches(), 500);
+      } catch (err) {
+        console.error('Toggle failed:', err);
+        showToast(`Chyba při přepínání: ${err.message}`, 'error');
+      }
+    }
+
+    async function toggleExclusiveFan(entityId) {
+      const oppositeId = FAN_PAIR[entityId];
+      const currentState = lastStates[entityId]?.state;
+
+      try {
+        if (currentState === 'on') {
+          // Turning off — just turn it off
+          await setSwitchState(entityId, 'off');
+        } else {
+          // Turning on — first ensure the opposite is off
+          const oppositeState = lastStates[oppositeId]?.state;
+          if (oppositeState === 'on') {
+            await setSwitchState(oppositeId, 'off');
+            // Small delay to let HA process
+            await new Promise(r => setTimeout(r, 300));
+          }
+          await setSwitchState(entityId, 'on');
+        }
+
+        const shortName = SWITCH_DEFS.find(s => s.id === entityId)?.label || entityId;
+        showToast(`${shortName} přepnuto`, 'success');
+        setTimeout(() => refreshSwitches(), 500);
+      } catch (err) {
+        console.error('Exclusive fan toggle failed:', err);
+        showToast(`Chyba při přepínání: ${err.message}`, 'error');
+      }
+    }
+
+    async function refreshSwitches() {
+      try {
+        const results = await Promise.allSettled(
+          SWITCH_DEFS.map(s => fetchState(s.id))
+        );
+        results.forEach((result, i) => {
+          if (result.status === 'fulfilled') {
+            lastStates[SWITCH_DEFS[i].id] = result.value;
+            updateSwitchUI(SWITCH_DEFS[i], result.value);
+          }
+        });
+      } catch (err) { /* silent */ }
+    }
+
+    // ============================================================
+    //  HELPERS
+    // ============================================================
+    function getShortId(entityId) {
+      return entityId.replace(/^(sensor|switch)\./, '');
+    }
+
+    function formatValue(value, precision) {
+      const num = parseFloat(value);
+      if (isNaN(num)) return '--';
+      return num.toFixed(precision);
+    }
+
+    function getSensorValue(def, stateObj) {
+      if (!stateObj) return def.defaultZero ? 0 : null;
+      const val = parseFloat(stateObj.state);
+      if (isNaN(val) || stateObj.state === 'unavailable' || stateObj.state === 'unknown') {
+        return def.defaultZero ? 0 : null;
+      }
+      return val;
+    }
+
+    function formatTime(date) {
+      return date.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    // ============================================================
+    //  UI UPDATES
+    // ============================================================
+    function updateSensorUI(def, stateObj) {
+      const el = document.getElementById(`val-${getShortId(def.id)}`);
+      if (!el) return;
+
+      const numVal = getSensorValue(def, stateObj);
+      if (numVal === null) {
+        el.textContent = '--';
+        el.style.color = 'var(--text-muted)';
+      } else {
+        el.textContent = numVal.toFixed(def.precision);
+        // Color coding for temperature sensors
+        if (def.unit === '\u00b0C') {
+          if (numVal > 40)      el.style.color = 'var(--accent-red)';
+          else if (numVal > 30) el.style.color = 'var(--accent-orange)';
+          else                  el.style.color = 'var(--text-primary)';
+        } else {
+          el.style.color = 'var(--text-primary)';
+        }
+      }
+    }
+
+    function updateSwitchUI(def, stateObj) {
+      const btn = document.getElementById(`btn-${getShortId(def.id)}`);
+      if (!btn) return;
+      const isOn = stateObj?.state === 'on';
+      btn.classList.toggle('on', isOn);
+    }
+
+    function updateConnectionStatus(connected) {
+      isConnected = connected;
+      const dot  = document.getElementById('connDot');
+      const text = document.getElementById('connText');
+      const time = document.getElementById('lastUpdate');
+
+      dot.classList.toggle('connected', connected);
+      text.textContent = connected ? 'Připojeno' : 'Odpojeno';
+      time.textContent = connected ? `Aktualizováno: ${formatTime(new Date())}` : '';
+    }
+
+    function updateSecurityInfo() {
+      document.getElementById('secHA').textContent = HA_URL;
+      // Extract network info from HA_URL
+      try {
+        const url = new URL(HA_URL);
+        document.getElementById('secNetwork').textContent = `LAN (${url.hostname})`;
+      } catch (e) {
+        document.getElementById('secNetwork').textContent = 'LAN';
+      }
+      const proto = document.getElementById('secProtocol');
+      if (HA_URL.startsWith('https')) {
+        proto.textContent = 'HTTPS (TLS)';
+        proto.className = 'security-value ok';
+      } else {
+        proto.textContent = 'HTTP';
+        proto.className = 'security-value warn';
+      }
+    }
+
+    // ============================================================
+    //  TOAST NOTIFICATIONS
+    // ============================================================
+    function showToast(message, type) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // ============================================================
+    //  SENSOR HISTORY & SPARKLINES
+    // ============================================================
+    function recordSensorHistory() {
+      const now = new Date();
+      SENSOR_DEFS.forEach(def => {
+        const val = getSensorValue(def, lastStates[def.id]);
+        const arr = sensorHistory[def.id];
+        arr.push({ time: now, value: val });
+        if (arr.length > MAX_HISTORY_POINTS) arr.shift();
+      });
+    }
+
+    function initSparklines() {
+      SENSOR_DEFS.forEach(def => {
+        const canvas = document.getElementById(`spark-${getShortId(def.id)}`);
+        if (!canvas) return;
+
+        sparkCharts[def.id] = new Chart(canvas, {
+          type: 'line',
+          data: {
+            labels: [],
+            datasets: [{
+              data: [],
+              borderColor: def.color,
+              backgroundColor: `${def.color}22`,
+              borderWidth: 1.5,
+              tension: 0.4,
+              pointRadius: 0,
+              fill: true,
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            scales: {
+              x: { display: false },
+              y: { display: false },
+            },
+            animation: false,
+          },
+        });
+      });
+    }
+
+    function updateSparklines() {
+      SENSOR_DEFS.forEach(def => {
+        const chart = sparkCharts[def.id];
+        if (!chart) return;
+        const history = sensorHistory[def.id];
+        const recent = history.slice(-SPARKLINE_POINTS);
+
+        chart.data.labels = recent.map(h => formatTime(h.time));
+        chart.data.datasets[0].data = recent.map(h => h.value);
+        chart.update('none');
+      });
+    }
+
+    // ============================================================
+    //  MAIN CHART WITH TOGGLEABLE DATASETS
+    // ============================================================
+    function initMainChart() {
+      const ctx = document.getElementById('historyChart').getContext('2d');
+
+      mainChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: SENSOR_DEFS.map(def => ({
+            label: `${def.label} (${def.unit})`,
+            data: [],
+            borderColor: def.color,
+            backgroundColor: `${def.color}15`,
+            borderWidth: 2,
+            tension: 0.3,
+            pointRadius: 1,
+            pointHoverRadius: 4,
+            fill: false,
+            hidden: !chartVisible[def.id],
+            sensorId: def.id,
+          })),
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#151b28',
+              borderColor: '#1e2a3a',
+              borderWidth: 1,
+              titleColor: '#fff',
+              bodyColor: '#8892a4',
+              titleFont: { family: 'Inter', weight: '600' },
+              bodyFont: { family: 'Inter' },
+              padding: 12,
+              cornerRadius: 8,
+            },
+          },
+          scales: {
+            x: {
+              ticks: { color: '#5a6478', font: { size: 10 }, maxTicksLimit: 15 },
+              grid:  { color: 'rgba(255,255,255,0.05)' },
+            },
+            y: {
+              ticks: { color: '#5a6478', font: { size: 10 } },
+              grid:  { color: 'rgba(255,255,255,0.05)' },
+            },
+          },
+        },
+      });
+
+      buildChartToggles();
+    }
+
+    function buildChartToggles() {
+      const container = document.getElementById('chartToggles');
+      container.innerHTML = '';
+
+      SENSOR_DEFS.forEach((def, idx) => {
+        const btn = document.createElement('button');
+        btn.className = `chart-toggle-btn ${chartVisible[def.id] ? 'active' : ''}`;
+        btn.style.borderColor = chartVisible[def.id] ? def.color : '';
+        btn.style.background = chartVisible[def.id] ? `${def.color}20` : '';
+        btn.innerHTML = `<span class="color-dot" style="background:${def.color}"></span>${def.label}`;
+
+        btn.addEventListener('click', () => {
+          chartVisible[def.id] = !chartVisible[def.id];
+          mainChart.data.datasets[idx].hidden = !chartVisible[def.id];
+          mainChart.update();
+          btn.classList.toggle('active', chartVisible[def.id]);
+          btn.style.borderColor = chartVisible[def.id] ? def.color : '';
+          btn.style.background = chartVisible[def.id] ? `${def.color}20` : '';
+        });
+
+        container.appendChild(btn);
+      });
+    }
+
+    function updateMainChart() {
+      if (!mainChart) return;
+      const history0 = sensorHistory[SENSOR_DEFS[0].id];
+      if (history0.length === 0) return;
+
+      mainChart.data.labels = history0.map(h => formatTime(h.time));
+
+      SENSOR_DEFS.forEach((def, idx) => {
+        mainChart.data.datasets[idx].data = sensorHistory[def.id].map(h => h.value);
+      });
+
+      mainChart.update('none');
+    }
+
+    // ============================================================
+    //  ENERGY CHART
+    // ============================================================
+    function initEnergyChart() {
+      const ctx = document.getElementById('energyChart');
+      if (!ctx) return;
+
+      const ctxObj = ctx.getContext('2d');
+      const vykonDef   = SENSOR_DEFS.find(d => d.id === 'sensor.klima_box_vykon_pzem');
+      const energieDef = SENSOR_DEFS.find(d => d.id === 'sensor.klima_box_spotrebovana_energie_pzem');
+
+      energyChart = new Chart(ctxObj, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Výkon PZEM (W)',
+              data: [],
+              borderColor: vykonDef.color,
+              backgroundColor: `${vykonDef.color}15`,
+              borderWidth: 2,
+              tension: 0.3,
+              pointRadius: 1,
+              yAxisID: 'yPower',
+              hidden: !energyChartVisible['sensor.klima_box_vykon_pzem'],
+            },
+            {
+              label: 'Spotřeba PZEM (Wh)',
+              data: [],
+              borderColor: energieDef.color,
+              backgroundColor: `${energieDef.color}15`,
+              borderWidth: 2,
+              tension: 0.3,
+              pointRadius: 1,
+              yAxisID: 'yEnergy',
+              hidden: !energyChartVisible['sensor.klima_box_spotrebovana_energie_pzem'],
+            },
+            {
+              label: 'Uložená energie (Wh)',
+              data: [],
+              borderColor: '#10b981',
+              backgroundColor: '#10b98115',
+              borderWidth: 2,
+              tension: 0.3,
+              pointRadius: 1,
+              borderDash: [5, 3],
+              yAxisID: 'yEnergy',
+              hidden: !energyChartVisible['ebrix_e_stored'],
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#151b28',
+              borderColor: '#1e2a3a',
+              borderWidth: 1,
+              titleFont: { size: 12, weight: 'bold' },
+              bodyFont: { size: 11 },
+              padding: 10,
+            },
+          },
+          scales: {
+            x: {
+              ticks: { color: '#5a6478', font: { size: 10 } },
+              grid: { color: 'rgba(255,255,255,0.05)' }
+            },
+            yPower: {
+              position: 'left',
+              ticks: { color: '#ec4899', font: { size: 10 } },
+              grid: { color: 'rgba(255,255,255,0.03)' },
+              title: { display: true, text: 'W', color: '#ec4899', font: { size: 10 } }
+            },
+            yEnergy: {
+              position: 'right',
+              ticks: { color: '#d97706', font: { size: 10 } },
+              grid: { display: false },
+              title: { display: true, text: 'Wh', color: '#d97706', font: { size: 10 } }
+            },
+          },
+        },
+      });
+
+      buildEnergyChartToggles();
+    }
+
+    function updateEnergyChart() {
+      if (!energyChart) return;
+      const history0 = sensorHistory['sensor.klima_box_vykon_pzem'];
+      if (!history0 || history0.length === 0) return;
+
+      energyChart.data.labels = history0.map(h => formatTime(h.time));
+
+      energyChart.data.datasets[0].data = sensorHistory['sensor.klima_box_vykon_pzem'].map(h => h.value);
+      energyChart.data.datasets[1].data = sensorHistory['sensor.klima_box_spotrebovana_energie_pzem'].map(h => h.value);
+
+      const coreHistory = sensorHistory['sensor.klima_box_teplota_core'];
+      energyChart.data.datasets[2].data = coreHistory.map(h => calcStoredEnergy(h.value));
+
+      energyChart.update('none');
+
+      // Aktualizuj efficiency badge
+      const latestPzem = sensorHistory['sensor.klima_box_spotrebovana_energie_pzem'].slice(-1)[0]?.value;
+      const latestCore = sensorHistory['sensor.klima_box_teplota_core'].slice(-1)[0]?.value;
+      const eStored    = calcStoredEnergy(latestCore);
+      const eff        = calcEfficiency(eStored, latestPzem);
+      const badge      = document.getElementById('efficiencyBadge');
+      if (badge) badge.textContent = eff !== null ? `Efektivita: ${eff.toFixed(1)} %` : 'Efektivita: -- %';
+    }
+
+    function buildEnergyChartToggles() {
+      const container = document.getElementById('energyChartToggles');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const datasets = [
+        { id: 'sensor.klima_box_vykon_pzem', label: 'Výkon (W)', color: '#ec4899' },
+        { id: 'sensor.klima_box_spotrebovana_energie_pzem', label: 'Spotřeba (Wh)', color: '#d97706' },
+        { id: 'ebrix_e_stored', label: 'Uloženo (Wh)', color: '#10b981' },
+      ];
+
+      datasets.forEach((ds, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'chart-toggle-btn' + (energyChartVisible[ds.id] ? ' active' : '');
+        btn.textContent = ds.label;
+        btn.style.borderColor = energyChartVisible[ds.id] ? ds.color : 'transparent';
+        btn.onclick = () => {
+          energyChartVisible[ds.id] = !energyChartVisible[ds.id];
+          if (energyChart) energyChart.data.datasets[idx].hidden = !energyChartVisible[ds.id];
+          energyChart?.update('none');
+          btn.classList.toggle('active');
+          btn.style.borderColor = energyChartVisible[ds.id] ? ds.color : 'transparent';
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    // ============================================================
+    //  LOG SYSTEM — all sensors
+    // ============================================================
+    function recordLogEntry() {
+      if (Object.keys(lastStates).length === 0) return;
+
+      const entry = { timestamp: new Date() };
+      SENSOR_DEFS.forEach(def => {
+        const val = getSensorValue(def, lastStates[def.id]);
+        entry[def.id] = val;
+      });
+
+      // Přidej vypočtené hodnoty
+      const coreTemp = getSensorValue(
+        SENSOR_DEFS.find(d => d.id === 'sensor.klima_box_teplota_core'),
+        lastStates['sensor.klima_box_teplota_core']
+      );
+      const pzemEnergy = getSensorValue(
+        SENSOR_DEFS.find(d => d.id === 'sensor.klima_box_spotrebovana_energie_pzem'),
+        lastStates['sensor.klima_box_spotrebovana_energie_pzem']
+      );
+      entry['ebrix_e_stored'] = calcStoredEnergy(coreTemp);
+      entry['ebrix_efficiency'] = calcEfficiency(entry['ebrix_e_stored'], pzemEnergy);
+
+      logHistory.unshift(entry);
+      if (logHistory.length > MAX_LOG_ENTRIES) logHistory.pop();
+      renderLogTable();
+    }
+
+    function renderLogTable() {
+      const tbody = document.getElementById('logBody');
+      const count = document.getElementById('logCount');
+
+      tbody.innerHTML = logHistory.map(e => {
+        const v = (id, prec) => {
+          const val = e[id];
+          return val === null || val === undefined ? '--' : val.toFixed(prec);
+        };
+        return `<tr>
+          <td>${formatTime(e.timestamp)}</td>
+          <td>${v('sensor.klima_box_teplota_aht', 1)}</td>
+          <td>${v('sensor.klima_box_vlhkost_aht', 1)}</td>
+          <td>${v('sensor.klima_box_teplota_bmp', 1)}</td>
+          <td>${v('sensor.klima_box_tlak_bmp', 0)}</td>
+          <td>${v('sensor.klima_box_teplota_out', 1)}</td>
+          <td>${v('sensor.klima_box_teplota_core', 1)}</td>
+          <td>${v('sensor.klima_box_napeti_pzem', 1)}</td>
+          <td>${v('sensor.klima_box_proud_pzem', 2)}</td>
+          <td>${v('sensor.klima_box_vykon_pzem', 1)}</td>
+          <td>${v('sensor.klima_box_spotrebovana_energie_pzem', 2)}</td>
+          <td>${v('ebrix_e_stored', 2)}</td>
+          <td>${v('ebrix_efficiency', 1)}</td>
+          <td>${v('sensor.klima_box_frekvence_pzem', 1)}</td>
+        </tr>`;
+      }).join('');
+
+      count.textContent = `${logHistory.length} záznamů`;
+    }
+
+    function clearLog() {
+      logHistory = [];
+      renderLogTable();
+      showToast('Protokol vymazán', 'info');
+    }
+
+    function exportCSV() {
+      if (logHistory.length === 0) { showToast('Žádná data k exportu', 'info'); return; }
+
+      const headers = ['Čas', ...SENSOR_DEFS.map(d => `${d.label} (${d.unit})`)];
+      const rows = logHistory.map(e => {
+        const vals = SENSOR_DEFS.map(d => {
+          const val = e[d.id];
+          return val === null || val === undefined ? '' : val.toFixed(d.precision);
+        });
+        return [formatTime(e.timestamp), ...vals].join(';');
+      });
+
+      const csv = [headers.join(';'), ...rows].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ebrix-protokol-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('CSV exportován', 'success');
+    }
+
+    // ============================================================
+    //  ADMIN PANEL FUNCTIONS
+    // ============================================================
+    function openAdminPanel() {
+      document.getElementById('adminOverlay').classList.add('open');
+      document.getElementById('adminPanel').classList.add('open');
+      document.getElementById('adminHaUrl').textContent = HA_URL;
+      document.getElementById('adminTokenPreview').textContent = TOKEN.slice(0, 20) + '...';
+      recalcPhysics();
+      updateSystemParams();
+    }
+
+    function closeAdminPanel() {
+      document.getElementById('adminOverlay').classList.remove('open');
+      document.getElementById('adminPanel').classList.remove('open');
+    }
+
+    function switchAdminTab(tab) {
+      document.querySelectorAll('.admin-tab').forEach(el => {
+        el.classList.remove('active');
+      });
+
+      // Aktivuj správný tab tlačítko
+      document.querySelectorAll('.admin-tab').forEach(el => {
+        if (el.textContent.toLowerCase().includes(tab.toLowerCase()) ||
+            (tab === 'ha' && el.textContent.includes('Setup')) ||
+            (tab === 'physics' && el.textContent.includes('Fyzika')) ||
+            (tab === 'system' && el.textContent.includes('Systém')) ||
+            (tab === 'limits' && el.textContent.includes('Limity'))) {
+          el.classList.add('active');
+        }
+      });
+
+      // Skryj všechny taby
+      document.getElementById('tab-physics').style.display = 'none';
+      document.getElementById('tab-system').style.display = 'none';
+      document.getElementById('tab-limits').style.display = 'none';
+      document.getElementById('tab-ha').style.display = 'none';
+
+      // Zobraz vybraný tab
+      const tabEl = document.getElementById(`tab-${tab}`);
+      if (tabEl) tabEl.style.display = 'block';
+    }
+
+    function recalcPhysics() {
+      brickParams.length  = parseFloat(document.getElementById('param-length').value)  || 20;
+      brickParams.width   = parseFloat(document.getElementById('param-width').value)   || 20;
+      brickParams.height  = parseFloat(document.getElementById('param-height').value)  || 20;
+      brickParams.density = parseFloat(document.getElementById('param-density').value) || 1800;
+      brickParams.cp      = parseFloat(document.getElementById('param-cp').value)      || 900;
+      brickParams.tRef    = parseFloat(document.getElementById('param-tref').value)    ?? 20;
+
+      const vol  = (brickParams.length / 100) * (brickParams.width / 100) * (brickParams.height / 100);
+      const mass = brickParams.density * vol;
+
+      const coreTemp  = getSensorValue(
+        SENSOR_DEFS.find(d => d.id === 'sensor.klima_box_teplota_core'),
+        lastStates['sensor.klima_box_teplota_core']
+      );
+      const eStored   = calcStoredEnergy(coreTemp);
+      const pzemEnergy = getSensorValue(
+        SENSOR_DEFS.find(d => d.id === 'sensor.klima_box_spotrebovana_energie_pzem'),
+        lastStates['sensor.klima_box_spotrebovana_energie_pzem']
+      );
+      const eff = calcEfficiency(eStored, pzemEnergy);
+
+      document.getElementById('calcPreviewContent').innerHTML = `
+        <div class="calc-preview-line">
+          <span>Objem:</span>
+          <span class="calc-preview-value">${(vol * 1e6).toFixed(0)} cm³</span>
+        </div>
+        <div class="calc-preview-line">
+          <span>Hmotnost:</span>
+          <span class="calc-preview-value">${mass.toFixed(2)} kg</span>
+        </div>
+        <div class="calc-preview-line">
+          <span>Uložená energie:</span>
+          <span class="calc-preview-value">${eStored !== null ? eStored.toFixed(2) : '--'} Wh</span>
+        </div>
+        <div class="calc-preview-line">
+          <span>Efektivita:</span>
+          <span class="calc-preview-value">${eff !== null ? eff.toFixed(1) : '--'} %</span>
+        </div>
+      `;
+    }
+
+    function updateSystemParams() {
+      CHARGE_TARGET_TEMP = parseFloat(document.getElementById('param-charge-temp')?.value) || 80;
+      CHARGE_HYSTERESIS = parseFloat(document.getElementById('param-hysteresis')?.value) || 1;
+
+      const systemContent = document.getElementById('systemPreviewContent');
+      if (systemContent) {
+        systemContent.innerHTML = `
+          <div class="calc-preview-line">
+            <span>HA URL:</span>
+            <span class="calc-preview-value" style="font-size:0.75rem;word-break:break-all">${HA_URL}</span>
+          </div>
+          <div class="calc-preview-line">
+            <span>Polling (ms):</span>
+            <span class="calc-preview-value">${SENSOR_REFRESH_MS}</span>
+          </div>
+          <div class="calc-preview-line">
+            <span>Historie (ms):</span>
+            <span class="calc-preview-value">${HISTORY_REFRESH_MS}</span>
+          </div>
+          <div class="calc-preview-line">
+            <span>Cíl teplota:</span>
+            <span class="calc-preview-value">${CHARGE_TARGET_TEMP}°C</span>
+          </div>
+        `;
+      }
+    }
+
+    // ============================================================
+    //  ENERGY PRICE UPDATE
+    // ============================================================
+    function updateEnergyPricesUI() {
+      // Current prices
+      const elecPrice = parseFloat(energyPrices['sensor.current_spot_electricity_price']) || null;
+      const gasPrice = parseFloat(energyPrices['sensor.current_spot_gas_price']) || null;
+
+      if (elecPrice !== null) {
+        document.getElementById('priceElectricity').textContent = elecPrice.toFixed(4);
+      } else {
+        document.getElementById('priceElectricity').textContent = '--';
+      }
+
+      if (gasPrice !== null) {
+        document.getElementById('priceGas').textContent = gasPrice.toFixed(4);
+      } else {
+        document.getElementById('priceGas').textContent = '--';
+      }
+
+      // Today's comparison
+      const cheapestToday = parseFloat(energyPrices['sensor.spot_cheapest_electricity_today']) || null;
+      const expensiveToday = parseFloat(energyPrices['sensor.spot_most_expensive_electricity_today']) || null;
+
+      if (cheapestToday !== null) {
+        document.getElementById('priceCheapestToday').textContent = cheapestToday.toFixed(4);
+      } else {
+        document.getElementById('priceCheapestToday').textContent = '--';
+      }
+
+      if (expensiveToday !== null) {
+        document.getElementById('priceExpensiveToday').textContent = expensiveToday.toFixed(4);
+      } else {
+        document.getElementById('priceExpensiveToday').textContent = '--';
+      }
+
+      // Tomorrow's forecast
+      const cheapestTomorrow = parseFloat(energyPrices['sensor.spot_cheapest_electricity_tomorrow']) || null;
+      const gasTomorrow = parseFloat(energyPrices['sensor.tomorrow_spot_gas_price']) || null;
+
+      if (cheapestTomorrow !== null) {
+        document.getElementById('priceCheapestTomorrow').textContent = cheapestTomorrow.toFixed(4);
+      } else {
+        document.getElementById('priceCheapestTomorrow').textContent = '--';
+      }
+
+      if (gasTomorrow !== null) {
+        document.getElementById('priceGasTomorrow').textContent = gasTomorrow.toFixed(4);
+      } else {
+        document.getElementById('priceGasTomorrow').textContent = '--';
+      }
+
+      // Cost analysis: calculate hourly cost based on current power
+      const currentPower = getSensorValue(
+        SENSOR_DEFS.find(d => d.id === 'sensor.klima_box_vykon_pzem'),
+        lastStates['sensor.klima_box_vykon_pzem']
+      );
+
+      document.getElementById('costCurrentPower').textContent =
+        currentPower !== null ? currentPower.toFixed(1) : '--';
+
+      if (elecPrice !== null && currentPower !== null) {
+        const costPerHour = (currentPower * elecPrice) / 1000;  // W * €/kWh / 1000
+        document.getElementById('costPerHour').textContent = costPerHour.toFixed(4);
+      } else {
+        document.getElementById('costPerHour').textContent = '--';
+      }
+
+      // Theoretical cost comparison: stored energy in € (electricity vs gas)
+      const coreTemp = getSensorValue(
+        SENSOR_DEFS.find(d => d.id === 'sensor.klima_box_teplota_core'),
+        lastStates['sensor.klima_box_teplota_core']
+      );
+      const eStored = calcStoredEnergy(coreTemp);
+
+      // Cost if energy was bought as electricity
+      if (eStored !== null && elecPrice !== null) {
+        const costElec = (eStored * elecPrice) / 1000;  // Wh * €/kWh / 1000
+        document.getElementById('costStoredElectricity').textContent = costElec.toFixed(4);
+      } else {
+        document.getElementById('costStoredElectricity').textContent = '--';
+      }
+
+      // Cost if energy was bought as gas
+      if (eStored !== null && gasPrice !== null) {
+        const costGas = (eStored * gasPrice + 10) / 1000;  // Wh * €/kWh / 1000
+        document.getElementById('costStoredGas').textContent = costGas.toFixed(4);
+      } else {
+        document.getElementById('costStoredGas').textContent = '--';
+      }
+    }
+
+    // ============================================================
+    //  REFRESH LOOP
+    // ============================================================
+    async function refreshAll() {
+      try {
+        const result = await fetchAllStates();
+
+        SENSOR_DEFS.forEach(def => updateSensorUI(def, lastStates[def.id]));
+        SWITCH_DEFS.forEach(def => updateSwitchUI(def, lastStates[def.id]));
+        updateConnectionStatus(result.success > 0);
+
+        // EBRIX: Aktualizuj status banner a check auto-charge
+        updateBannerMetrics();
+        checkAutoCharge();
+        updateEnergyPricesUI();
+      } catch (err) {
+        updateConnectionStatus(false);
+        console.error('Refresh failed:', err);
+      }
+    }
+
+    function historyTick() {
+      recordSensorHistory();
+      updateSparklines();
+      updateMainChart();
+      updateEnergyChart();  // EBRIX: energetický graf
+      recordLogEntry();
+    }
+
+    // ============================================================
+    //  INITIALIZATION
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', () => {
+      if (TOKEN === 'YOUR_LONG_LIVED_ACCESS_TOKEN_HERE') {
+        document.getElementById('tokenBanner').classList.add('visible');
+      }
+
+      updateSecurityInfo();
+      initSparklines();
+      initMainChart();
+      initEnergyChart();     // EBRIX: inicializuj energetický graf
+      updateStatusBanner('off');  // EBRIX: inicializuj status banner
+      recalcPhysics();       // EBRIX: inicializuj fyziku
+
+      // First fetch, then start intervals
+      refreshAll().then(() => historyTick());
+
+      // Sensor refresh every 5s
+      setInterval(refreshAll, SENSOR_REFRESH_MS);
+
+      // History + log + chart every 30s
+      setInterval(historyTick, HISTORY_REFRESH_MS);
+    });
+  </script>
+
+</body>
+</html>
